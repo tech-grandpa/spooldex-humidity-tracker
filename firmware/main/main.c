@@ -18,7 +18,7 @@
 #include "esp_netif.h"
 
 #include "ble_scanner.h"
-#include "mqtt_client.h"
+#include "mqtt_publisher.h"
 #include "http_push.h"
 #include "display.h"
 #include "sensor_db.h"

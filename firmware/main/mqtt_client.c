@@ -1,12 +1,10 @@
-#include "mqtt_client.h"
-#include "sensor_db.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include "esp_log.h"
-#include "mqtt_client.h"
-
-// Use the ESP-IDF MQTT client header directly
-#include "mqtt_client.h"
+#include "esp_event.h"
+#include "mqtt_client.h"     // ESP-IDF MQTT component (from esp-mqtt)
+#include "mqtt_publisher.h"  // Our header
+#include "sensor_db.h"
 
 static const char *TAG = "mqtt";
 
