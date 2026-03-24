@@ -28,6 +28,7 @@
 #include "wifi_provision.h"
 #include "status_led.h"
 #include "ota_update.h"
+#include "version.h"
 
 static const char *TAG = "main";
 
@@ -190,6 +191,7 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "╔══════════════════════════════════════╗");
     ESP_LOGI(TAG, "║  Spooldex Humidity Tracker Hub       ║");
+    ESP_LOGI(TAG, "║  Version: %-27s ║", FIRMWARE_VERSION);
     ESP_LOGI(TAG, "║  github.com/tech-grandpa             ║");
     ESP_LOGI(TAG, "╚══════════════════════════════════════╝");
 
