@@ -115,3 +115,11 @@ int mqtt_get_error_count(void)
 {
     return error_count;
 }
+
+int mqtt_publish(const char *topic, const char *payload, int qos, int retain)
+{
+    if (!connected || !client) {
+        return -1;
+    }
+    return esp_mqtt_client_publish(client, topic, payload, 0, qos, retain);
+}

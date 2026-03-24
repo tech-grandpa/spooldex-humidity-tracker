@@ -24,4 +24,5 @@ idf_component_register(
         driver
         esp_timer
         esp_netif
+        esp_lcd
 )

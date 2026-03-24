@@ -20,3 +20,9 @@ bool mqtt_is_connected(void);
  * Get MQTT error count.
  */
 int mqtt_get_error_count(void);
+
+/**
+ * Publish an arbitrary message to a topic.
+ * Returns message ID on success, -1 on failure.
+ */
+int mqtt_publish(const char *topic, const char *payload, int qos, int retain);

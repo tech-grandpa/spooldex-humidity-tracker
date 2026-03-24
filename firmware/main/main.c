@@ -126,27 +126,30 @@ static void health_report_task(void *arg)
         char topic[128];
         char payload[256];
 
-        // Uptime
+        // Collect metrics
         uint64_t uptime_sec = esp_timer_get_time() / 1000000;
-        snprintf(topic, sizeof(topic), "%s/hub/uptime", CONFIG_MQTT_TOPIC_PREFIX);
-        snprintf(payload, sizeof(payload), "%llu", uptime_sec);
-        // mqtt_publish(topic, payload); // TODO: add publish function
-
-        // Free heap
         uint32_t free_heap = esp_get_free_heap_size();
-        snprintf(topic, sizeof(topic), "%s/hub/free_heap", CONFIG_MQTT_TOPIC_PREFIX);
-        snprintf(payload, sizeof(payload), "%lu", free_heap);
+        int sensor_count = sensor_db_count();
+        int mqtt_errors = mqtt_get_error_count();
 
-        // WiFi RSSI
+        // Publish health JSON bundle
+        snprintf(topic, sizeof(topic), "%s/hub/health", CONFIG_MQTT_TOPIC_PREFIX);
+
+        int wifi_rssi = 0;
         wifi_ap_record_t ap_info;
         if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
-            snprintf(topic, sizeof(topic), "%s/hub/wifi_rssi", CONFIG_MQTT_TOPIC_PREFIX);
-            snprintf(payload, sizeof(payload), "%d", ap_info.rssi);
+            wifi_rssi = ap_info.rssi;
         }
 
-        int mqtt_errors = mqtt_get_error_count();
-        ESP_LOGI(TAG, "Health: uptime=%llus, free_heap=%lu, sensors=%d, mqtt_errors=%d",
-                 uptime_sec, free_heap, sensor_db_count(), mqtt_errors);
+        snprintf(payload, sizeof(payload),
+                 "{\"uptime\":%llu,\"free_heap\":%lu,"
+                 "\"sensors\":%d,\"wifi_rssi\":%d,\"mqtt_errors\":%d}",
+                 uptime_sec, free_heap, sensor_count, wifi_rssi, mqtt_errors);
+
+        mqtt_publish(topic, payload, 0, 0);
+
+        ESP_LOGI(TAG, "Health: uptime=%llus, free_heap=%lu, sensors=%d, wifi_rssi=%d, mqtt_errors=%d",
+                 uptime_sec, free_heap, sensor_count, wifi_rssi, mqtt_errors);
 
         // Pet watchdog
         esp_task_wdt_reset();
