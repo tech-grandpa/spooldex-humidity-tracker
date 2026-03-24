@@ -6,6 +6,7 @@
 #define CONFIG_PASS_MAX_LEN 64
 #define CONFIG_URL_MAX_LEN  128
 #define CONFIG_NAME_MAX_LEN 32
+#define CONFIG_KEY_MAX_LEN  64
 
 /**
  * Hub configuration stored in NVS.
@@ -13,7 +14,8 @@
 typedef struct {
     char wifi_ssid[CONFIG_SSID_MAX_LEN];
     char wifi_password[CONFIG_PASS_MAX_LEN];
-    char mqtt_broker_url[CONFIG_URL_MAX_LEN];
+    char api_url[CONFIG_URL_MAX_LEN];
+    char api_key[CONFIG_KEY_MAX_LEN];
     char hub_name[CONFIG_NAME_MAX_LEN];
     char ota_url[CONFIG_URL_MAX_LEN];
     bool configured;

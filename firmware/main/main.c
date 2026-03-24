@@ -2,7 +2,7 @@
  * Spooldex Humidity Tracker — Hub Firmware
  *
  * ESP32-C6 gateway that receives BLE advertisements from pvvx-firmware
- * Xiaomi LYWSD03MMC sensors and forwards readings via MQTT and/or HTTP.
+ * Xiaomi LYWSD03MMC sensors and forwards readings via HTTP REST API.
  *
  * Copyright (c) 2026 tech-grandpa
  * SPDX-License-Identifier: MIT
@@ -20,7 +20,6 @@
 #include "esp_task_wdt.h"
 
 #include "ble_scanner.h"
-#include "mqtt_publisher.h"
 #include "http_push.h"
 #include "display.h"
 #include "sensor_db.h"
@@ -43,7 +42,6 @@ static hub_state_t hub_state = HUB_STATE_WIFI_CONNECTING;
 static int wifi_retry_count = 0;
 static int wifi_retry_delay_s = 5;
 static const int WIFI_MAX_RETRY_DELAY = 300;  // Max 5 minutes
-static bool mqtt_connected = false;
 
 /* ── WiFi ──────────────────────────────────────────────────────── */
 
@@ -120,20 +118,10 @@ static void health_report_task(void *arg)
     while (1) {
         vTaskDelay(interval);
 
-        if (!mqtt_is_connected()) continue;
-
-        // Report hub health metrics
-        char topic[128];
-        char payload[256];
-
         // Collect metrics
         uint64_t uptime_sec = esp_timer_get_time() / 1000000;
         uint32_t free_heap = esp_get_free_heap_size();
         int sensor_count = sensor_db_count();
-        int mqtt_errors = mqtt_get_error_count();
-
-        // Publish health JSON bundle
-        snprintf(topic, sizeof(topic), "%s/hub/health", CONFIG_MQTT_TOPIC_PREFIX);
 
         int wifi_rssi = 0;
         wifi_ap_record_t ap_info;
@@ -141,15 +129,11 @@ static void health_report_task(void *arg)
             wifi_rssi = ap_info.rssi;
         }
 
-        snprintf(payload, sizeof(payload),
-                 "{\"uptime\":%llu,\"free_heap\":%lu,"
-                 "\"sensors\":%d,\"wifi_rssi\":%d,\"mqtt_errors\":%d}",
-                 uptime_sec, free_heap, sensor_count, wifi_rssi, mqtt_errors);
+        // Push health via HTTP
+        http_push_health(uptime_sec, free_heap, sensor_count, wifi_rssi);
 
-        mqtt_publish(topic, payload, 0, 0);
-
-        ESP_LOGI(TAG, "Health: uptime=%llus, free_heap=%lu, sensors=%d, wifi_rssi=%d, mqtt_errors=%d",
-                 uptime_sec, free_heap, sensor_count, wifi_rssi, mqtt_errors);
+        ESP_LOGI(TAG, "Health: uptime=%llus, free_heap=%lu, sensors=%d, wifi_rssi=%d",
+                 uptime_sec, free_heap, sensor_count, wifi_rssi);
 
         // Pet watchdog
         esp_task_wdt_reset();
@@ -168,10 +152,7 @@ static void publish_task(void *arg)
         // Prune sensors not seen in 5 minutes
         sensor_db_prune(300);
 
-        // Publish via MQTT
-        mqtt_publish_readings();
-
-        // Publish via HTTP (if enabled)
+        // Publish via HTTP REST API
         http_push_readings();
 
         // Update display
@@ -242,8 +223,7 @@ void app_main(void)
         esp_restart();
     }
 
-    // Initialize MQTT and HTTP clients
-    mqtt_client_init();
+    // Initialize HTTP client
     http_push_init();
 
     // Initialize OTA

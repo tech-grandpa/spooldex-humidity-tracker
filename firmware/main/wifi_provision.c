@@ -31,14 +31,16 @@ static const char *config_html =
 ".info{background:#e7f3ff;padding:10px;border-radius:4px;margin-bottom:20px;font-size:14px;}"
 "</style></head><body>"
 "<h1>🌡️ Spooldex Hub Setup</h1>"
-"<div class='info'>Configure your hub's WiFi and MQTT connection. The device will reboot after saving.</div>"
+"<div class='info'>Configure your hub's WiFi and API connection. The device will reboot after saving.</div>"
 "<form action='/save' method='POST'>"
 "<label>WiFi SSID:</label>"
 "<input type='text' name='ssid' required maxlength='31' placeholder='YourWiFiNetwork'>"
 "<label>WiFi Password:</label>"
 "<input type='password' name='pass' required maxlength='63' placeholder='YourWiFiPassword'>"
-"<label>MQTT Broker URL:</label>"
-"<input type='text' name='mqtt' required maxlength='127' placeholder='mqtt://10.10.10.123:1883'>"
+"<label>API URL:</label>"
+"<input type='text' name='api_url' required maxlength='127' placeholder='http://localhost:3000/api/humidity/readings'>"
+"<label>API Key (optional):</label>"
+"<input type='password' name='api_key' maxlength='63' placeholder='your-api-key'>"
 "<label>Hub Name:</label>"
 "<input type='text' name='name' maxlength='31' placeholder='spooldex-hub' value='spooldex-hub'>"
 "<label>OTA Update URL (optional):</label>"
@@ -104,8 +106,10 @@ static void parse_form_data(const char *body, hub_config_t *cfg)
             url_decode(cfg->wifi_ssid, value, sizeof(cfg->wifi_ssid));
         } else if (strcmp(key, "pass") == 0) {
             url_decode(cfg->wifi_password, value, sizeof(cfg->wifi_password));
-        } else if (strcmp(key, "mqtt") == 0) {
-            url_decode(cfg->mqtt_broker_url, value, sizeof(cfg->mqtt_broker_url));
+        } else if (strcmp(key, "api_url") == 0) {
+            url_decode(cfg->api_url, value, sizeof(cfg->api_url));
+        } else if (strcmp(key, "api_key") == 0) {
+            url_decode(cfg->api_key, value, sizeof(cfg->api_key));
         } else if (strcmp(key, "name") == 0) {
             url_decode(cfg->hub_name, value, sizeof(cfg->hub_name));
         } else if (strcmp(key, "ota") == 0) {
@@ -139,11 +143,11 @@ static esp_err_t save_handler(httpd_req_t *req)
     hub_config_t new_cfg = {0};
     parse_form_data(body, &new_cfg);
 
-    ESP_LOGI(TAG, "Received config: SSID=%s, MQTT=%s, Name=%s",
-             new_cfg.wifi_ssid, new_cfg.mqtt_broker_url, new_cfg.hub_name);
+    ESP_LOGI(TAG, "Received config: SSID=%s, API=%s, Name=%s",
+             new_cfg.wifi_ssid, new_cfg.api_url, new_cfg.hub_name);
 
     // Validate
-    if (strlen(new_cfg.wifi_ssid) == 0 || strlen(new_cfg.mqtt_broker_url) == 0) {
+    if (strlen(new_cfg.wifi_ssid) == 0 || strlen(new_cfg.api_url) == 0) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing required fields");
         return ESP_FAIL;
     }

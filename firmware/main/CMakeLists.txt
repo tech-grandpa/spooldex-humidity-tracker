@@ -2,7 +2,6 @@ idf_component_register(
     SRCS
         "main.c"
         "ble_scanner.c"
-        "mqtt_client.c"
         "http_push.c"
         "display.c"
         "sensor_db.c"
@@ -16,7 +15,6 @@ idf_component_register(
         nvs_flash
         esp_wifi
         esp_event
-        mqtt
         esp_http_client
         esp_http_server
         esp_https_ota

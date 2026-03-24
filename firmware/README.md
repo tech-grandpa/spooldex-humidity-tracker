@@ -1,21 +1,20 @@
 # Spooldex Humidity Tracker — Hub Firmware
 
-ESP32-C6 firmware that acts as a BLE-to-MQTT/HTTP gateway for Xiaomi LYWSD03MMC temperature/humidity sensors running pvvx or BTHome v2 firmware.
+ESP32-C6 firmware that acts as a BLE-to-HTTP gateway for Xiaomi LYWSD03MMC temperature/humidity sensors running pvvx or BTHome v2 firmware.
 
 ## Features
 
 ✅ **BLE Passive Scanning** — Receives pvvx custom format and BTHome v2 advertisements  
-✅ **MQTT Publishing** — Forwards sensor data to MQTT broker with JSON payloads  
-✅ **HTTP REST Push** — Optional HTTP POST to REST API  
+✅ **HTTP REST Push** — Forwards sensor data to REST API with Bearer auth  
 ✅ **SSD1306 OLED Display** — Shows live sensor readings, cycles every 3 seconds  
 ✅ **WiFi Captive Portal** — First-boot setup via browser (192.168.4.1)  
-✅ **NVS Configuration** — Persistent WiFi/MQTT credentials  
+✅ **NVS Configuration** — Persistent WiFi/API credentials  
 ✅ **OTA Updates** — HTTPS firmware updates from configurable URL  
 ✅ **Status LED** — Visual feedback for hub state  
-✅ **Auto-reconnect** — WiFi and MQTT with exponential backoff  
+✅ **Auto-reconnect** — WiFi with exponential backoff  
 ✅ **Watchdog Timer** — System reset on hang  
 ✅ **NTP Time Sync** — Accurate timestamps  
-✅ **Health Reporting** — Uptime, free heap, WiFi RSSI, error counts  
+✅ **Health Reporting** — Uptime, free heap, WiFi RSSI to REST endpoint  
 
 ## Hardware Requirements
 
@@ -62,8 +61,9 @@ idf.py -p /dev/ttyUSB0 flash monitor
 4. Browser will redirect to captive portal, or visit: **http://192.168.4.1**
 5. Enter:
    - WiFi SSID & password
-   - MQTT broker URL (e.g., `mqtt://10.10.10.123:1883`)
-   - Hub name (optional)
+   - API URL (e.g., `http://localhost:3000/api/humidity/readings`)
+   - API Key (optional, for Bearer authentication)
+   - Hub name (optional, default: `spooldex-hub`)
    - OTA update URL (optional)
 6. Click **Save & Reboot**
 7. Hub will connect to WiFi and start scanning
@@ -77,46 +77,59 @@ idf.py -p /dev/ttyUSB0 flash monitor
 | Solid on | Connected, scanning |
 | Double blink | Sensor data received |
 
-## MQTT Topics
+## REST API Endpoints
 
-All topics are prefixed with `CONFIG_MQTT_TOPIC_PREFIX` (default: `spooldex/humidity`).
+### Sensor Readings
 
-### Sensor Data
+**POST** `<api_url>` (default: `http://localhost:3000/api/humidity/readings`)
 
-Topic: `<prefix>/sensors/<MAC>`
+Headers:
+```
+Content-Type: application/json
+Authorization: Bearer <api_key>
+```
 
 Payload:
 ```json
 {
-  "mac": "A4:C1:38:XX:XX:XX",
-  "name": "DryBox-1",
-  "temperature": 23.45,
-  "humidity": 42.10,
-  "battery_pct": 87,
-  "battery_mv": 2950,
-  "rssi": -65,
-  "timestamp": 1738012345
+  "hub_id": "spooldex-hub",
+  "readings": [
+    {
+      "mac": "A4:C1:38:XX:XX:XX",
+      "name": "DryBox-1",
+      "temperature": 23.45,
+      "humidity": 42.10,
+      "battery_pct": 87,
+      "battery_mv": 2950,
+      "rssi": -65,
+      "timestamp": 1738012345
+    }
+  ]
 }
 ```
 
-### Hub Status
+### Hub Health
 
-| Topic | Description |
-|-------|-------------|
-| `<prefix>/hub/status` | `online` / `offline` (LWT, retained) |
-| `<prefix>/hub/sensor_count` | Number of active sensors |
-| `<prefix>/hub/uptime` | Hub uptime in seconds |
-| `<prefix>/hub/free_heap` | Free heap memory in bytes |
-| `<prefix>/hub/wifi_rssi` | WiFi signal strength (dBm) |
+**POST** `<api_url_base>/health` (e.g., `http://localhost:3000/api/humidity/health`)
+
+Headers: Same as above
+
+Payload:
+```json
+{
+  "hub_id": "spooldex-hub",
+  "uptime": 3600,
+  "free_heap": 123456,
+  "sensors": 4,
+  "wifi_rssi": -65
+}
+```
 
 ## OTA Updates
 
 ### Manual Trigger
 
-Set OTA URL in provisioning portal, then:
-```bash
-mosquitto_pub -t spooldex/humidity/hub/ota -m "update"
-```
+Set OTA URL in provisioning portal, then trigger update via your backend or web UI.
 
 ### Automatic Checks
 
@@ -133,15 +146,15 @@ Run `idf.py menuconfig` and navigate to **Spooldex Humidity Tracker Configuratio
 |--------|---------|-------------|
 | `WIFI_SSID` | "" | WiFi network name (fallback) |
 | `WIFI_PASSWORD` | "" | WiFi password (fallback) |
-| `MQTT_BROKER_URL` | `mqtt://localhost:1883` | MQTT broker |
-| `MQTT_TOPIC_PREFIX` | `spooldex/humidity` | Base MQTT topic |
+| `SPOOLDEX_URL` | `http://localhost:3000/api/humidity/readings` | REST API endpoint |
+| `API_KEY` | "" | Bearer token for API auth |
 | `PUSH_INTERVAL_S` | 30 | Publish interval |
-| `HTTP_PUSH_ENABLED` | No | Enable HTTP REST push |
 | `DISPLAY_ENABLED` | Yes | Enable OLED display |
 | `MAX_SENSORS` | 16 | Max tracked sensors |
 | `STATUS_LED_PIN` | 8 | Status LED GPIO |
 | `WATCHDOG_TIMEOUT_S` | 60 | Watchdog timeout |
 | `NTP_SERVER` | `pool.ntp.org` | NTP server |
+| `HEALTH_REPORT_INTERVAL_S` | 300 | Health push interval |
 
 ## Supported Sensor Formats
 
@@ -169,11 +182,11 @@ Object IDs:
 - LED should blink slowly during connection attempts
 - Check serial output: `idf.py monitor`
 
-### MQTT not connecting
+### HTTP push failing
 
-- Verify broker URL format: `mqtt://IP:PORT`
-- Check broker is reachable from hub's network
-- Look for MQTT error count in health reports
+- Verify API URL is reachable from hub's network
+- Check API key if authentication is required
+- Look for HTTP status codes in serial logs
 
 ### Display shows "Scanning..." forever
 
@@ -196,6 +209,39 @@ ESP32-C6 has limited RAM. To optimize:
 - Reduce `MAX_SENSORS` if you have fewer sensors
 - Disable `DISPLAY_ENABLED` if not using OLED
 - Set `CONFIG_COMPILER_OPTIMIZATION_SIZE=y`
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     ESP32-C6 Hub                        │
+│                                                         │
+│  ┌──────────┐  BLE Ads   ┌────────────┐                │
+│  │  BLE     │ ───────▶   │ Sensor DB  │                │
+│  │ Scanner  │            │ (in-memory)│                │
+│  └──────────┘            └─────┬──────┘                │
+│                                 │                        │
+│                                 ▼                        │
+│                          ┌─────────────┐                │
+│                          │  Publish    │                │
+│                          │  Task       │                │
+│                          └──────┬──────┘                │
+│                                 │                        │
+│                                 ▼                        │
+│                          ┌─────────────┐                │
+│                          │ HTTP Push   │                │
+│                          │ (REST API)  │                │
+│                          └──────┬──────┘                │
+│                                 │                        │
+└─────────────────────────────────┼───────────────────────┘
+                                  │
+                                  ▼
+                         ┌──────────────────┐
+                         │  Spooldex API    │
+                         │  (Node.js +      │
+                         │   PostgreSQL)    │
+                         └──────────────────┘
+```
 
 ## License
 

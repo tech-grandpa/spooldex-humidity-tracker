@@ -16,13 +16,13 @@ The system consists of two parts:
 ## Architecture
 
 ```
-┌─────────────┐     BLE      ┌─────────────┐     WiFi/MQTT     ┌──────────┐
+┌─────────────┐     BLE      ┌─────────────┐     WiFi/HTTP     ┌──────────┐
 │  Xiaomi     │  broadcast   │  ESP32-C6   │    ──────────►   │ Spooldex │
 │  Sensor #1  │ ──────────►  │    Hub      │                   │  Server  │
 └─────────────┘              │             │     REST API       │          │
-┌─────────────┐              │  - BLE scan │    ──────────►   │          │
-│  Sensor #2  │ ──────────►  │  - WiFi up  │                   └──────────┘
-└─────────────┘              │  - Display  │
+┌─────────────┐              │  - BLE scan │    (Bearer auth)   │          │
+│  Sensor #2  │ ──────────►  │  - WiFi up  │    ──────────►   │          │
+└─────────────┘              │  - Display  │                   └──────────┘
 ┌─────────────┐              │  - LED      │
 │  Sensor #N  │ ──────────►  │             │
 └─────────────┘              └─────────────┘
@@ -130,8 +130,7 @@ The hub firmware is an ESP-IDF project for the ESP32-C6. It passively scans for 
 
 - **Passive BLE scanning** — no pairing, just listens for broadcasts
 - **Auto-discovery** — new sensors appear automatically
-- **MQTT publishing** — readings pushed to your MQTT broker (same as Spooldex uses)
-- **REST API push** — alternatively push directly to Spooldex HTTP API
+- **REST API push** — readings pushed directly to Spooldex HTTP API with Bearer auth
 - **OLED display** — shows sensor count, latest readings, WiFi status
 - **OTA updates** — flash new firmware over WiFi
 - **Low resource** — runs on the C6's single RISC-V core, plenty of headroom
@@ -149,11 +148,12 @@ cd spooldex-humidity-tracker/firmware
 # Set target
 idf.py set-target esp32c6
 
-# Configure WiFi and MQTT
+# Configure WiFi and API
 idf.py menuconfig
 # → Spooldex Humidity Tracker Configuration
 #   → WiFi SSID / Password
-#   → MQTT Broker URL (e.g., mqtt://10.10.10.123:1883)
+#   → Spooldex API URL (e.g., http://localhost:3000/api/humidity/readings)
+#   → API Key (optional, for Bearer authentication)
 #   → Push interval (default: 30 seconds)
 
 # Build and flash
@@ -166,49 +166,26 @@ idf.py build flash monitor
 |---------|---------|-------------|
 | WiFi SSID | — | Your WiFi network |
 | WiFi Password | — | WiFi password |
-| MQTT Broker URL | `mqtt://localhost:1883` | MQTT broker address |
-| MQTT Topic Prefix | `spooldex/humidity` | Base topic for sensor data |
+| Spooldex URL | `http://localhost:3000/api/humidity/readings` | REST API endpoint |
+| API Key | — | Bearer token for authentication |
 | BLE Scan Window | 5000 ms | How long to scan per cycle |
 | BLE Scan Interval | 10000 ms | Time between scan cycles |
 | Push Interval | 30 s | How often to send data to server |
 | Display Enabled | true | Enable SSD1306 OLED |
+| Health Report Interval | 300 s | How often to send health metrics |
 
-### MQTT Topics
+### REST API Format
 
-```
-spooldex/humidity/sensors/{mac_address}/temperature  → 23.5
-spooldex/humidity/sensors/{mac_address}/humidity      → 42.1
-spooldex/humidity/sensors/{mac_address}/battery       → 87
-spooldex/humidity/sensors/{mac_address}/rssi          → -65
-spooldex/humidity/hub/status                          → online
-spooldex/humidity/hub/sensor_count                    → 5
-```
+The hub pushes readings via HTTP POST:
 
-Payload format (JSON, published per sensor per interval):
-
-```json
-{
-  "mac": "A4:C1:38:XX:XX:XX",
-  "name": "DryBox-1",
-  "temperature": 23.5,
-  "humidity": 42.1,
-  "battery_pct": 87,
-  "battery_mv": 2950,
-  "rssi": -65,
-  "timestamp": 1711234567
-}
-```
-
-### REST API Push (Alternative to MQTT)
-
-If you prefer HTTP over MQTT, the hub can push readings directly to a REST endpoint:
-
+**Sensor Readings:**
 ```
 POST /api/humidity/readings
 Content-Type: application/json
+Authorization: Bearer <api_key>
 
 {
-  "hub_id": "hub-001",
+  "hub_id": "spooldex-hub",
   "readings": [
     {
       "mac": "A4:C1:38:XX:XX:XX",
@@ -216,10 +193,26 @@ Content-Type: application/json
       "temperature": 23.5,
       "humidity": 42.1,
       "battery_pct": 87,
+      "battery_mv": 2950,
       "rssi": -65,
       "timestamp": 1711234567
     }
   ]
+}
+```
+
+**Hub Health:**
+```
+POST /api/humidity/health
+Content-Type: application/json
+Authorization: Bearer <api_key>
+
+{
+  "hub_id": "spooldex-hub",
+  "uptime": 3600,
+  "free_heap": 123456,
+  "sensors": 4,
+  "wifi_rssi": -65
 }
 ```
 
@@ -254,14 +247,16 @@ spooldex-humidity-tracker/
 │   │   ├── main.c         # Application entry point
 │   │   ├── ble_scanner.c  # BLE passive scanner for pvvx sensors
 │   │   ├── ble_scanner.h
-│   │   ├── mqtt_client.c  # MQTT publisher
-│   │   ├── mqtt_client.h
-│   │   ├── http_push.c    # REST API push (alternative to MQTT)
+│   │   ├── http_push.c    # REST API push with Bearer auth
 │   │   ├── http_push.h
 │   │   ├── display.c      # SSD1306 OLED driver
 │   │   ├── display.h
 │   │   ├── sensor_db.c    # In-memory sensor registry
 │   │   ├── sensor_db.h
+│   │   ├── config_manager.c  # NVS configuration storage
+│   │   ├── config_manager.h
+│   │   ├── wifi_provision.c  # Captive portal for setup
+│   │   ├── wifi_provision.h
 │   │   └── Kconfig        # menuconfig options
 │   ├── CMakeLists.txt
 │   ├── sdkconfig.defaults
@@ -279,12 +274,12 @@ spooldex-humidity-tracker/
 ## Development Roadmap
 
 - [x] Project setup and documentation
-- [ ] Hub firmware — BLE passive scanner (pvvx format)
-- [ ] Hub firmware — WiFi + MQTT push
-- [ ] Hub firmware — OLED display
-- [ ] Hub firmware — REST API push
-- [ ] Hub firmware — OTA updates
-- [ ] Hub firmware — Web config portal (WiFi AP mode for initial setup)
+- [x] Hub firmware — BLE passive scanner (pvvx format)
+- [x] Hub firmware — WiFi + REST API push
+- [x] Hub firmware — OLED display
+- [x] Hub firmware — REST API push with Bearer auth
+- [x] Hub firmware — OTA updates
+- [x] Hub firmware — Web config portal (WiFi AP mode for initial setup)
 - [ ] Spooldex integration — humidity data model + API endpoints
 - [ ] Spooldex integration — sensor assignment UI
 - [ ] Spooldex integration — humidity history charts

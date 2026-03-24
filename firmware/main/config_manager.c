@@ -30,9 +30,14 @@ void config_manager_init(void)
             goto use_defaults;
         }
 
-        len = sizeof(config.mqtt_broker_url);
-        if (nvs_get_str(handle, "mqtt_url", config.mqtt_broker_url, &len) != ESP_OK) {
-            strlcpy(config.mqtt_broker_url, CONFIG_MQTT_BROKER_URL, sizeof(config.mqtt_broker_url));
+        len = sizeof(config.api_url);
+        if (nvs_get_str(handle, "api_url", config.api_url, &len) != ESP_OK) {
+            strlcpy(config.api_url, CONFIG_SPOOLDEX_URL, sizeof(config.api_url));
+        }
+
+        len = sizeof(config.api_key);
+        if (nvs_get_str(handle, "api_key", config.api_key, &len) != ESP_OK) {
+            strlcpy(config.api_key, CONFIG_API_KEY, sizeof(config.api_key));
         }
 
         len = sizeof(config.hub_name);
@@ -48,8 +53,8 @@ void config_manager_init(void)
         config.configured = true;
         nvs_close(handle);
 
-        ESP_LOGI(TAG, "Loaded config from NVS: SSID=%s, MQTT=%s, Hub=%s",
-                 config.wifi_ssid, config.mqtt_broker_url, config.hub_name);
+        ESP_LOGI(TAG, "Loaded config from NVS: SSID=%s, API=%s, Hub=%s",
+                 config.wifi_ssid, config.api_url, config.hub_name);
         return;
     }
 
@@ -60,7 +65,8 @@ use_defaults:
     ESP_LOGW(TAG, "No valid config in NVS, using Kconfig defaults");
     strlcpy(config.wifi_ssid, CONFIG_WIFI_SSID, sizeof(config.wifi_ssid));
     strlcpy(config.wifi_password, CONFIG_WIFI_PASSWORD, sizeof(config.wifi_password));
-    strlcpy(config.mqtt_broker_url, CONFIG_MQTT_BROKER_URL, sizeof(config.mqtt_broker_url));
+    strlcpy(config.api_url, CONFIG_SPOOLDEX_URL, sizeof(config.api_url));
+    strlcpy(config.api_key, CONFIG_API_KEY, sizeof(config.api_key));
     strlcpy(config.hub_name, "spooldex-hub", sizeof(config.hub_name));
     config.ota_url[0] = '\0';
 
@@ -89,7 +95,8 @@ esp_err_t config_save(const hub_config_t *cfg)
 
     nvs_set_str(handle, "wifi_ssid", cfg->wifi_ssid);
     nvs_set_str(handle, "wifi_pass", cfg->wifi_password);
-    nvs_set_str(handle, "mqtt_url", cfg->mqtt_broker_url);
+    nvs_set_str(handle, "api_url", cfg->api_url);
+    nvs_set_str(handle, "api_key", cfg->api_key);
     nvs_set_str(handle, "hub_name", cfg->hub_name);
     nvs_set_str(handle, "ota_url", cfg->ota_url);
 

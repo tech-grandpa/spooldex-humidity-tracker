@@ -12,17 +12,17 @@ menu "Spooldex Humidity Tracker Configuration"
         help
             WiFi network password.
 
-    config MQTT_BROKER_URL
-        string "MQTT Broker URL"
-        default "mqtt://localhost:1883"
+    config SPOOLDEX_URL
+        string "Spooldex API URL"
+        default "http://localhost:3000/api/humidity/readings"
         help
-            MQTT broker URL (e.g., mqtt://10.10.10.123:1883).
+            REST endpoint for pushing sensor readings.
 
-    config MQTT_TOPIC_PREFIX
-        string "MQTT Topic Prefix"
-        default "spooldex/humidity"
+    config API_KEY
+        string "API Key"
+        default ""
         help
-            Base MQTT topic for sensor data.
+            Bearer token for API authentication.
 
     config BLE_SCAN_WINDOW_MS
         int "BLE Scan Window (ms)"
@@ -40,20 +40,7 @@ menu "Spooldex Humidity Tracker Configuration"
         int "Push Interval (seconds)"
         default 30
         help
-            How often to push sensor readings to MQTT/HTTP.
-
-    config HTTP_PUSH_ENABLED
-        bool "Enable HTTP REST Push"
-        default n
-        help
-            Push readings via HTTP POST in addition to (or instead of) MQTT.
-
-    config HTTP_PUSH_URL
-        string "HTTP Push URL"
-        depends on HTTP_PUSH_ENABLED
-        default "http://localhost:3000/api/humidity/readings"
-        help
-            REST endpoint for pushing sensor readings.
+            How often to push sensor readings to REST API.
 
     config DISPLAY_ENABLED
         bool "Enable SSD1306 OLED Display"
@@ -99,6 +86,6 @@ menu "Spooldex Humidity Tracker Configuration"
         int "Health Report Interval (seconds)"
         default 300
         help
-            How often to publish hub health metrics via MQTT (uptime, free heap, etc.).
+            How often to push hub health metrics via REST API (uptime, free heap, etc.).
 
 endmenu
