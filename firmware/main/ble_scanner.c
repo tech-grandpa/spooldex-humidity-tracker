@@ -25,6 +25,20 @@ static const char *TAG = "ble_scanner";
 #define PVVX_SERVICE_UUID   0x181A
 #define PVVX_PAYLOAD_LEN    15
 
+/*
+ * BTHome v2 format:
+ * UUID16 service data: 0xFCD2
+ * Byte 0: Device info (bit 0 = encryption, bits 1-4 = version, bit 5 = trigger)
+ * Bytes 1+: Object ID + data pairs
+ *
+ * Common object IDs:
+ * 0x01 = Battery (1 byte, %)
+ * 0x02 = Temperature (2 bytes, 0.01°C)
+ * 0x03 = Humidity (2 bytes, 0.01%)
+ * 0x0C = Voltage (2 bytes, 0.001V)
+ */
+#define BTHOME_SERVICE_UUID 0xFCD2
+
 /**
  * Parse a pvvx custom format advertisement.
  * Returns true if successfully parsed.
@@ -58,6 +72,77 @@ static bool parse_pvvx_adv(const uint8_t *data, uint8_t len, pvvx_reading_t *out
 }
 
 /**
+ * Parse BTHome v2 format advertisement.
+ * Returns true if successfully parsed.
+ */
+static bool parse_bthome_adv(const uint8_t *data, uint8_t len, const uint8_t *mac_addr, pvvx_reading_t *out)
+{
+    if (len < 2) return false;
+
+    // Byte 0: device info
+    uint8_t device_info = data[0];
+    bool encrypted = device_info & 0x01;
+    
+    if (encrypted) {
+        ESP_LOGD(TAG, "BTHome: encrypted advertisements not supported");
+        return false;
+    }
+
+    // Copy MAC address
+    memcpy(out->mac, mac_addr, 6);
+
+    // Parse object ID + data pairs
+    uint8_t pos = 1;
+    bool has_temp = false, has_humi = false;
+    
+    while (pos < len) {
+        uint8_t obj_id = data[pos++];
+        
+        switch (obj_id) {
+        case 0x01:  // Battery %
+            if (pos < len) {
+                out->battery_pct = data[pos++];
+            }
+            break;
+            
+        case 0x02:  // Temperature (0.01°C)
+            if (pos + 1 < len) {
+                int16_t temp_raw = (int16_t)(data[pos] | (data[pos + 1] << 8));
+                out->temperature = temp_raw / 100.0f;
+                pos += 2;
+                has_temp = true;
+            }
+            break;
+            
+        case 0x03:  // Humidity (0.01%)
+            if (pos + 1 < len) {
+                uint16_t humi_raw = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+                out->humidity = humi_raw / 100.0f;
+                pos += 2;
+                has_humi = true;
+            }
+            break;
+            
+        case 0x0C:  // Voltage (0.001V)
+            if (pos + 1 < len) {
+                uint16_t volt_raw = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+                out->battery_mv = volt_raw;  // Already in mV
+                pos += 2;
+            }
+            break;
+            
+        default:
+            // Unknown object ID — try to skip it
+            // Most BTHome objects are 1-3 bytes, assume 1 for unknown
+            if (pos < len) pos++;
+            break;
+        }
+    }
+
+    return has_temp && has_humi;
+}
+
+/**
  * BLE GAP event handler — processes incoming advertisements.
  */
 static int ble_gap_event_handler(struct ble_gap_event *event, void *arg)
@@ -74,7 +159,7 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg)
         return 0;
     }
 
-    // Look for service data with Environmental Sensing UUID (0x181A)
+    // Look for service data (pvvx or BTHome)
     // We need to manually walk the raw AD structures for service data
     const uint8_t *ad = desc->data;
     uint8_t ad_len = desc->length_data;
@@ -89,29 +174,34 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg)
         // AD type 0x16 = Service Data - 16-bit UUID
         if (ad_type == 0x16 && elem_len >= 4) {
             uint16_t uuid = ad[pos + 2] | (ad[pos + 3] << 8);
+            const uint8_t *payload = &ad[pos + 4];
+            uint8_t payload_len = elem_len - 3;  // minus type + uuid bytes
+
+            pvvx_reading_t reading = {0};
+            bool parsed = false;
 
             if (uuid == PVVX_SERVICE_UUID) {
-                const uint8_t *payload = &ad[pos + 4];
-                uint8_t payload_len = elem_len - 3;  // minus type + uuid bytes
+                parsed = parse_pvvx_adv(payload, payload_len, &reading);
+            } else if (uuid == BTHOME_SERVICE_UUID) {
+                parsed = parse_bthome_adv(payload, payload_len, desc->addr.val, &reading);
+            }
 
-                pvvx_reading_t reading = {0};
-                if (parse_pvvx_adv(payload, payload_len, &reading)) {
-                    reading.rssi = desc->rssi;
+            if (parsed) {
+                reading.rssi = desc->rssi;
 
-                    // Extract name from advertisement if available
-                    if (fields.name_len > 0 && fields.name_len < sizeof(reading.name)) {
-                        memcpy(reading.name, fields.name, fields.name_len);
-                        reading.name[fields.name_len] = '\0';
-                    }
-
-                    // Store in sensor database
-                    sensor_db_update(
-                        reading.mac, reading.name,
-                        reading.temperature, reading.humidity,
-                        reading.battery_pct, reading.battery_mv,
-                        reading.rssi
-                    );
+                // Extract name from advertisement if available
+                if (fields.name_len > 0 && fields.name_len < sizeof(reading.name)) {
+                    memcpy(reading.name, fields.name, fields.name_len);
+                    reading.name[fields.name_len] = '\0';
                 }
+
+                // Store in sensor database
+                sensor_db_update(
+                    reading.mac, reading.name,
+                    reading.temperature, reading.humidity,
+                    reading.battery_pct, reading.battery_mv,
+                    reading.rssi
+                );
                 break;
             }
         }

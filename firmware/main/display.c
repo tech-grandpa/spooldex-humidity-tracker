@@ -1,45 +1,252 @@
 #include "display.h"
 #include "sensor_db.h"
 #include "esp_log.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_vendor.h"
+#include "esp_lcd_panel_ops.h"
+#include "driver/i2c_master.h"
+#include "esp_timer.h"
+#include <string.h>
 
 static const char *TAG = "display";
 
-/*
- * TODO: Implement SSD1306 I2C driver.
- *
- * Recommended: Use the `esp_lcd` component with SSD1306 panel driver,
- * or a lightweight library like `ssd1306` from ESP Component Registry.
- *
- * Display layout (128x64 OLED):
- *
- * ┌──────────────────────┐
- * │ Spooldex Hub   5 sns │  <- header: title + sensor count
- * │──────────────────────│
- * │ DryBox-1       42.1% │  <- sensor name + humidity
- * │ 23.5°C     🔋 87%   │  <- temperature + battery
- * │──────────────────────│
- * │ DryBox-2       38.7% │  <- next sensor (cycle every 3s)
- * │ 22.1°C     🔋 92%   │
- * └──────────────────────┘
- *
- * If no sensors found, show "Scanning..." with animated dots.
- */
-
 #ifdef CONFIG_DISPLAY_ENABLED
+
+#define I2C_MASTER_FREQ_HZ  100000
+#define SSD1306_I2C_ADDR    0x3C
+
+// Simple 8x8 font for rendering text
+static const uint8_t font8x8[96][8] = {
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // space
+    {0x00,0x00,0x5F,0x00,0x00,0x00,0x00,0x00}, // !
+    {0x00,0x07,0x00,0x07,0x00,0x00,0x00,0x00}, // "
+    {0x14,0x7F,0x14,0x7F,0x14,0x00,0x00,0x00}, // #
+    {0x24,0x2A,0x7F,0x2A,0x12,0x00,0x00,0x00}, // $
+    {0x23,0x13,0x08,0x64,0x62,0x00,0x00,0x00}, // %
+    {0x36,0x49,0x55,0x22,0x50,0x00,0x00,0x00}, // &
+    {0x00,0x05,0x03,0x00,0x00,0x00,0x00,0x00}, // '
+    {0x00,0x1C,0x22,0x41,0x00,0x00,0x00,0x00}, // (
+    {0x00,0x41,0x22,0x1C,0x00,0x00,0x00,0x00}, // )
+    {0x08,0x2A,0x1C,0x2A,0x08,0x00,0x00,0x00}, // *
+    {0x08,0x08,0x3E,0x08,0x08,0x00,0x00,0x00}, // +
+    {0x00,0x50,0x30,0x00,0x00,0x00,0x00,0x00}, // ,
+    {0x08,0x08,0x08,0x08,0x08,0x00,0x00,0x00}, // -
+    {0x00,0x60,0x60,0x00,0x00,0x00,0x00,0x00}, // .
+    {0x20,0x10,0x08,0x04,0x02,0x00,0x00,0x00}, // /
+    {0x3E,0x51,0x49,0x45,0x3E,0x00,0x00,0x00}, // 0
+    {0x00,0x42,0x7F,0x40,0x00,0x00,0x00,0x00}, // 1
+    {0x42,0x61,0x51,0x49,0x46,0x00,0x00,0x00}, // 2
+    {0x21,0x41,0x45,0x4B,0x31,0x00,0x00,0x00}, // 3
+    {0x18,0x14,0x12,0x7F,0x10,0x00,0x00,0x00}, // 4
+    {0x27,0x45,0x45,0x45,0x39,0x00,0x00,0x00}, // 5
+    {0x3C,0x4A,0x49,0x49,0x30,0x00,0x00,0x00}, // 6
+    {0x01,0x71,0x09,0x05,0x03,0x00,0x00,0x00}, // 7
+    {0x36,0x49,0x49,0x49,0x36,0x00,0x00,0x00}, // 8
+    {0x06,0x49,0x49,0x29,0x1E,0x00,0x00,0x00}, // 9
+    {0x00,0x36,0x36,0x00,0x00,0x00,0x00,0x00}, // :
+    {0x00,0x56,0x36,0x00,0x00,0x00,0x00,0x00}, // ;
+    {0x00,0x08,0x14,0x22,0x41,0x00,0x00,0x00}, // <
+    {0x14,0x14,0x14,0x14,0x14,0x00,0x00,0x00}, // =
+    {0x41,0x22,0x14,0x08,0x00,0x00,0x00,0x00}, // >
+    {0x02,0x01,0x51,0x09,0x06,0x00,0x00,0x00}, // ?
+    {0x32,0x49,0x79,0x41,0x3E,0x00,0x00,0x00}, // @
+    {0x7E,0x11,0x11,0x11,0x7E,0x00,0x00,0x00}, // A
+    {0x7F,0x49,0x49,0x49,0x36,0x00,0x00,0x00}, // B
+    {0x3E,0x41,0x41,0x41,0x22,0x00,0x00,0x00}, // C
+    {0x7F,0x41,0x41,0x22,0x1C,0x00,0x00,0x00}, // D
+    {0x7F,0x49,0x49,0x49,0x41,0x00,0x00,0x00}, // E
+    {0x7F,0x09,0x09,0x01,0x01,0x00,0x00,0x00}, // F
+    {0x3E,0x41,0x41,0x51,0x32,0x00,0x00,0x00}, // G
+    {0x7F,0x08,0x08,0x08,0x7F,0x00,0x00,0x00}, // H
+    {0x00,0x41,0x7F,0x41,0x00,0x00,0x00,0x00}, // I
+    {0x20,0x40,0x41,0x3F,0x01,0x00,0x00,0x00}, // J
+    {0x7F,0x08,0x14,0x22,0x41,0x00,0x00,0x00}, // K
+    {0x7F,0x40,0x40,0x40,0x40,0x00,0x00,0x00}, // L
+    {0x7F,0x02,0x04,0x02,0x7F,0x00,0x00,0x00}, // M
+    {0x7F,0x04,0x08,0x10,0x7F,0x00,0x00,0x00}, // N
+    {0x3E,0x41,0x41,0x41,0x3E,0x00,0x00,0x00}, // O
+    {0x7F,0x09,0x09,0x09,0x06,0x00,0x00,0x00}, // P
+    {0x3E,0x41,0x51,0x21,0x5E,0x00,0x00,0x00}, // Q
+    {0x7F,0x09,0x19,0x29,0x46,0x00,0x00,0x00}, // R
+    {0x46,0x49,0x49,0x49,0x31,0x00,0x00,0x00}, // S
+    {0x01,0x01,0x7F,0x01,0x01,0x00,0x00,0x00}, // T
+    {0x3F,0x40,0x40,0x40,0x3F,0x00,0x00,0x00}, // U
+    {0x1F,0x20,0x40,0x20,0x1F,0x00,0x00,0x00}, // V
+    {0x7F,0x20,0x18,0x20,0x7F,0x00,0x00,0x00}, // W
+    {0x63,0x14,0x08,0x14,0x63,0x00,0x00,0x00}, // X
+    {0x03,0x04,0x78,0x04,0x03,0x00,0x00,0x00}, // Y
+    {0x61,0x51,0x49,0x45,0x43,0x00,0x00,0x00}, // Z
+};
+
+static i2c_master_bus_handle_t i2c_bus = NULL;
+static esp_lcd_panel_handle_t panel = NULL;
+static uint8_t framebuffer[128 * 64 / 8];  // 1-bit per pixel
+static int current_sensor_index = 0;
+static int64_t last_update_time = 0;
+
+static void draw_char(int x, int y, char c)
+{
+    if (c < 32 || c > 127) c = 32;
+    const uint8_t *glyph = font8x8[c - 32];
+
+    for (int dy = 0; dy < 8; dy++) {
+        uint8_t row = glyph[dy];
+        for (int dx = 0; dx < 8; dx++) {
+            if (row & (1 << dx)) {
+                int px = x + dx;
+                int py = y + dy;
+                if (px >= 0 && px < 128 && py >= 0 && py < 64) {
+                    int byte_idx = px + (py / 8) * 128;
+                    int bit_idx = py % 8;
+                    framebuffer[byte_idx] |= (1 << bit_idx);
+                }
+            }
+        }
+    }
+}
+
+static void draw_string(int x, int y, const char *str)
+{
+    while (*str) {
+        draw_char(x, y, *str);
+        x += 8;
+        str++;
+    }
+}
+
+static void draw_line(int x1, int y1, int x2, int y2)
+{
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1;
+    int err = dx - dy;
+
+    while (1) {
+        if (x1 >= 0 && x1 < 128 && y1 >= 0 && y1 < 64) {
+            int byte_idx = x1 + (y1 / 8) * 128;
+            int bit_idx = y1 % 8;
+            framebuffer[byte_idx] |= (1 << bit_idx);
+        }
+
+        if (x1 == x2 && y1 == y2) break;
+        int e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x1 += sx; }
+        if (e2 < dx) { err += dx; y1 += sy; }
+    }
+}
+
 void display_init(void)
 {
-    ESP_LOGI(TAG, "Display init (SDA=%d, SCL=%d)",
+    ESP_LOGI(TAG, "Initializing SSD1306 display (SDA=%d, SCL=%d)",
              CONFIG_DISPLAY_SDA_PIN, CONFIG_DISPLAY_SCL_PIN);
-    // TODO: Initialize I2C and SSD1306
-    ESP_LOGW(TAG, "Display driver not yet implemented — readings available via MQTT/HTTP");
+
+    // Initialize I2C bus
+    i2c_master_bus_config_t bus_config = {
+        .i2c_port = I2C_NUM_0,
+        .sda_io_num = CONFIG_DISPLAY_SDA_PIN,
+        .scl_io_num = CONFIG_DISPLAY_SCL_PIN,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &i2c_bus));
+
+    // Create SSD1306 panel
+    esp_lcd_panel_io_handle_t io_handle = NULL;
+    esp_lcd_panel_io_i2c_config_t io_config = {
+        .dev_addr = SSD1306_I2C_ADDR,
+        .control_phase_bytes = 1,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+        .dc_bit_offset = 6,
+    };
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus, &io_config, &io_handle));
+
+    esp_lcd_panel_dev_config_t panel_config = {
+        .reset_gpio_num = -1,
+        .bits_per_pixel = 1,
+    };
+    ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(io_handle, &panel_config, &panel));
+
+    ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
+    ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
+
+    // Clear framebuffer
+    memset(framebuffer, 0, sizeof(framebuffer));
+
+    ESP_LOGI(TAG, "Display initialized");
+
+    // Show startup message
+    draw_string(8, 24, "Spooldex Hub");
+    draw_string(16, 40, "Starting...");
+    esp_lcd_panel_draw_bitmap(panel, 0, 0, 128, 64, framebuffer);
 }
 
 void display_update(void)
 {
-    // TODO: Render current sensor readings to OLED
+    int64_t now = esp_timer_get_time() / 1000;  // milliseconds
+
     // Cycle through sensors every 3 seconds
+    if (now - last_update_time < 3000) {
+        return;
+    }
+    last_update_time = now;
+
+    // Clear framebuffer
+    memset(framebuffer, 0, sizeof(framebuffer));
+
+    // Draw header
+    int sensor_count = sensor_db_count();
+    char header[32];
+    snprintf(header, sizeof(header), "Spooldex  %d sns", sensor_count);
+    draw_string(0, 0, header);
+    draw_line(0, 10, 127, 10);
+
+    if (sensor_count == 0) {
+        // Show scanning animation
+        static int dots = 0;
+        char scanning[20] = "Scanning";
+        for (int i = 0; i < (dots % 4); i++) {
+            strcat(scanning, ".");
+        }
+        draw_string(16, 28, scanning);
+        dots++;
+    } else {
+        // Find next active sensor
+        const sensor_entry_t *sensor = NULL;
+        for (int i = 0; i < CONFIG_MAX_SENSORS; i++) {
+            int idx = (current_sensor_index + i) % CONFIG_MAX_SENSORS;
+            sensor = sensor_db_get(idx);
+            if (sensor) {
+                current_sensor_index = (idx + 1) % CONFIG_MAX_SENSORS;
+                break;
+            }
+        }
+
+        if (sensor) {
+            // Sensor name
+            draw_string(0, 14, sensor->name[0] ? sensor->name : sensor->mac_str);
+
+            // Temperature and humidity on second line
+            char temp_hum[32];
+            snprintf(temp_hum, sizeof(temp_hum), "%.1fC  %.1f%%", sensor->temperature, sensor->humidity);
+            draw_string(0, 30, temp_hum);
+
+            // Battery on third line
+            char battery[32];
+            snprintf(battery, sizeof(battery), "Bat: %d%%  %dmV", sensor->battery_pct, sensor->battery_mv);
+            draw_string(0, 46, battery);
+        }
+    }
+
+    // Send framebuffer to display
+    esp_lcd_panel_draw_bitmap(panel, 0, 0, 128, 64, framebuffer);
 }
+
 #else
+
 void display_init(void)
 {
     ESP_LOGI(TAG, "Display disabled");
@@ -49,4 +256,5 @@ void display_update(void)
 {
     // No-op
 }
+
 #endif

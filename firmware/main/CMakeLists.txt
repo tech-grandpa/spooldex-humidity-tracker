@@ -6,6 +6,9 @@ idf_component_register(
         "http_push.c"
         "display.c"
         "sensor_db.c"
+        "config_manager.c"
+        "wifi_provision.c"
+        "status_led.c"
     INCLUDE_DIRS "."
     REQUIRES
         bt
@@ -14,6 +17,8 @@ idf_component_register(
         esp_event
         mqtt
         esp_http_client
+        esp_http_server
         driver
         esp_timer
+        esp_netif
 )
