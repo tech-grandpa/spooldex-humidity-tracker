@@ -15,3 +15,8 @@ void mqtt_publish_readings(void);
  * Check if MQTT is connected.
  */
 bool mqtt_is_connected(void);
+
+/**
+ * Get MQTT error count.
+ */
+int mqtt_get_error_count(void);

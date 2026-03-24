@@ -10,6 +10,7 @@ static const char *TAG = "mqtt";
 
 static esp_mqtt_client_handle_t client = NULL;
 static bool connected = false;
+static int error_count = 0;
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
                                int32_t event_id, void *event_data)
@@ -18,8 +19,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 
     switch (event->event_id) {
     case MQTT_EVENT_CONNECTED:
-        ESP_LOGI(TAG, "Connected to MQTT broker");
+        ESP_LOGI(TAG, "✓ Connected to MQTT broker");
         connected = true;
+        error_count = 0;
         // Publish hub online status
         char topic[128];
         snprintf(topic, sizeof(topic), "%s/hub/status", CONFIG_MQTT_TOPIC_PREFIX);
@@ -27,12 +29,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         break;
 
     case MQTT_EVENT_DISCONNECTED:
-        ESP_LOGW(TAG, "Disconnected from MQTT broker");
+        ESP_LOGW(TAG, "Disconnected from MQTT broker (will auto-reconnect)");
         connected = false;
         break;
 
     case MQTT_EVENT_ERROR:
-        ESP_LOGE(TAG, "MQTT error");
+        error_count++;
+        ESP_LOGE(TAG, "MQTT error (count: %d)", error_count);
         break;
 
     default:
@@ -106,4 +109,9 @@ void mqtt_publish_readings(void)
 bool mqtt_is_connected(void)
 {
     return connected;
+}
+
+int mqtt_get_error_count(void)
+{
+    return error_count;
 }

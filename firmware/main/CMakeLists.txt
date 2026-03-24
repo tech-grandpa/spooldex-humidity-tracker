@@ -9,6 +9,7 @@ idf_component_register(
         "config_manager.c"
         "wifi_provision.c"
         "status_led.c"
+        "ota_update.c"
     INCLUDE_DIRS "."
     REQUIRES
         bt
@@ -18,6 +19,8 @@ idf_component_register(
         mqtt
         esp_http_client
         esp_http_server
+        esp_https_ota
+        app_update
         driver
         esp_timer
         esp_netif

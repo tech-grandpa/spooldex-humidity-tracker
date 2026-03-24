@@ -1,5 +1,6 @@
 #include "ble_scanner.h"
 #include "sensor_db.h"
+#include "status_led.h"
 #include "esp_log.h"
 #include "host/ble_hs.h"
 #include "host/ble_gap.h"
@@ -202,6 +203,9 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg)
                     reading.battery_pct, reading.battery_mv,
                     reading.rssi
                 );
+
+                // Trigger LED pulse to indicate sensor data received
+                status_led_pulse();
                 break;
             }
         }
