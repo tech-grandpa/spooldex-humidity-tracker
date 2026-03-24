@@ -1,0 +1,80 @@
+menu "Spooldex Humidity Tracker Configuration"
+
+    config WIFI_SSID
+        string "WiFi SSID"
+        default ""
+        help
+            WiFi network name.
+
+    config WIFI_PASSWORD
+        string "WiFi Password"
+        default ""
+        help
+            WiFi network password.
+
+    config MQTT_BROKER_URL
+        string "MQTT Broker URL"
+        default "mqtt://localhost:1883"
+        help
+            MQTT broker URL (e.g., mqtt://10.10.10.123:1883).
+
+    config MQTT_TOPIC_PREFIX
+        string "MQTT Topic Prefix"
+        default "spooldex/humidity"
+        help
+            Base MQTT topic for sensor data.
+
+    config BLE_SCAN_WINDOW_MS
+        int "BLE Scan Window (ms)"
+        default 5000
+        help
+            How long to actively scan for BLE advertisements per cycle.
+
+    config BLE_SCAN_INTERVAL_MS
+        int "BLE Scan Interval (ms)"
+        default 10000
+        help
+            Time between BLE scan cycles.
+
+    config PUSH_INTERVAL_S
+        int "Push Interval (seconds)"
+        default 30
+        help
+            How often to push sensor readings to MQTT/HTTP.
+
+    config HTTP_PUSH_ENABLED
+        bool "Enable HTTP REST Push"
+        default n
+        help
+            Push readings via HTTP POST in addition to (or instead of) MQTT.
+
+    config HTTP_PUSH_URL
+        string "HTTP Push URL"
+        depends on HTTP_PUSH_ENABLED
+        default "http://localhost:3000/api/humidity/readings"
+        help
+            REST endpoint for pushing sensor readings.
+
+    config DISPLAY_ENABLED
+        bool "Enable SSD1306 OLED Display"
+        default y
+        help
+            Show sensor readings on an attached SSD1306 OLED.
+
+    config DISPLAY_SDA_PIN
+        int "Display SDA GPIO"
+        depends on DISPLAY_ENABLED
+        default 6
+
+    config DISPLAY_SCL_PIN
+        int "Display SCL GPIO"
+        depends on DISPLAY_ENABLED
+        default 7
+
+    config MAX_SENSORS
+        int "Maximum Tracked Sensors"
+        default 16
+        help
+            Maximum number of sensors the hub can track simultaneously.
+
+endmenu

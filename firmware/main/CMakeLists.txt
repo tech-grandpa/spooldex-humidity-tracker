@@ -1,0 +1,19 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "ble_scanner.c"
+        "mqtt_client.c"
+        "http_push.c"
+        "display.c"
+        "sensor_db.c"
+    INCLUDE_DIRS "."
+    REQUIRES
+        bt
+        nvs_flash
+        esp_wifi
+        esp_event
+        mqtt
+        esp_http_client
+        driver
+        esp_timer
+)
