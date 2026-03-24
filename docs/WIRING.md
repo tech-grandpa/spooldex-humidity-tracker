@@ -8,11 +8,22 @@ Just plug the ESP32-C6 into USB power. That's it. No wiring needed — BLE scann
 
 ### Parts
 
-- ESP32-C6-DevKitC-1 board
+- Seeed XIAO ESP32-C6 (recommended) or ESP32-C6-DevKitC-1
 - SSD1306 0.96" OLED display (I2C, 4-pin version)
 - 4x Dupont jumper wires (female-to-female)
 
-### Connections
+### Connections (Seeed XIAO ESP32-C6)
+
+```
+XIAO ESP32-C6      SSD1306 OLED
+──────────────      ────────────
+3.3V  ──────────    VCC
+GND   ──────────    GND
+GPIO6 (D4/SDA) ──  SDA
+GPIO7 (D5/SCL) ──  SCL
+```
+
+### Connections (ESP32-C6-DevKitC-1)
 
 ```
 ESP32-C6          SSD1306 OLED

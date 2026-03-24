@@ -4,19 +4,25 @@
 
 AliExpress listings change frequently. Use these search terms to find the right parts:
 
-### Hub Board
+### Hub Board (Recommended: Seeed XIAO ESP32-C6)
 
-**Search:** `ESP32-C6-DevKitC-1` or `ESP32-C6 development board`
+**Search:** `Seeed XIAO ESP32-C6` or `XIAO ESP32C6`
 
 **What to look for:**
-- ESP32-C6 chip (NOT C3 or S3 — only C6 has 802.15.4 for future Zigbee)
-- USB-C connector
-- DevKitC-1 form factor (standard breadboard-friendly)
-- ~€2-4
+- Seeed Studio XIAO ESP32-C6 — tiny 21×17.5mm board
+- USB-C, onboard antenna, built-in LiPo charge circuit
+- WiFi 6 + BLE 5 + 802.15.4 (Zigbee/Thread ready)
+- ~€5 on AliExpress, ~€7 from Seeed directly
 
-**Alternatives:**
-- WeAct ESP32-C6 mini (~€2, smaller form factor)
-- Seeed XIAO ESP32-C6 (~€5, very compact, USB-C)
+**Why this one:**
+- Smallest footprint — fits anywhere, easy to enclose
+- Built-in battery charging — future-proofs for portable use
+- Great antenna performance for its size
+- Well-documented (ESP-IDF + Arduino support)
+
+**Budget alternative:**
+- ESP32-C6-DevKitC-1 (~€3) — larger, more GPIOs, no battery charger
+- WeAct ESP32-C6 mini (~€2) — basic but functional
 
 ### Temperature/Humidity Sensors
 
@@ -48,12 +54,12 @@ AliExpress listings change frequently. Use these search terms to find the right 
 
 | Item | Qty | ~Price |
 |------|-----|--------|
-| ESP32-C6-DevKitC-1 | 1 | €3 |
+| Seeed XIAO ESP32-C6 | 1 | €5 |
 | Xiaomi LYWSD03MMC | 5 | €18 |
 | SSD1306 0.96" OLED I2C | 1 | €1.50 |
 | CR2032 batteries (spare pack) | 10 | €2 |
 | Dupont wires (F-F) | 1 pack | €1 |
-| **Total** | | **~€25** |
+| **Total** | | **~€27** |
 
 ### Shipping Tips
 

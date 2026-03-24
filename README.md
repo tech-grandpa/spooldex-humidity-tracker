@@ -48,10 +48,12 @@ The ESP32-C6 was chosen specifically because it supports WiFi + BLE + 802.15.4 (
 
 | Part | Description | Price (AliExpress) |
 |------|-------------|-------------------|
-| ESP32-C6-DevKitC-1 | Main board — WiFi 6 + BLE 5 + 802.15.4 | ~€3 |
+| **Seeed XIAO ESP32-C6** (recommended) | Tiny (21×17.5mm), USB-C, WiFi 6 + BLE 5 + 802.15.4, built-in LiPo charger | ~€5 |
 | SSD1306 0.96" OLED (optional) | I2C display for local readings | ~€1.50 |
 | USB-C cable | Power + initial flashing | ~€1 |
-| **Total** | | **~€5** |
+| **Total** | | **~€7** |
+
+> **Alternative:** ESP32-C6-DevKitC-1 (~€3) — larger board, more GPIOs, no battery charger. Works with the same firmware.
 
 #### Sensor Nodes (as many as you need)
 
@@ -60,16 +62,27 @@ The ESP32-C6 was chosen specifically because it supports WiFi + BLE + 802.15.4 (
 | Xiaomi LYWSD03MMC | BLE temp/humidity sensor with display | ~€3-4 each |
 | CR2032 battery (spare) | Included with sensor, spares are cheap | ~€0.20 each |
 
-**Example setup — 5 dry boxes:** 1 hub (€5) + 5 sensors (€20) = **€25 total**
+**Example setup — 5 dry boxes:** 1 hub (€7) + 5 sensors (€20) = **~€27 total**
 
 ### AliExpress Search Terms
 
-- Hub: `"ESP32-C6-DevKitC-1"` or `"ESP32-C6 development board"`
+- Hub: `"Seeed XIAO ESP32-C6"` or `"ESP32-C6 development board"`
 - Sensors: `"Xiaomi LYWSD03MMC"` or `"Xiaomi Mijia thermometer 2"`
 - Display: `"SSD1306 0.96 OLED I2C"` (get the 4-pin I2C version)
 
 ### Hub Wiring (with optional OLED)
 
+**Seeed XIAO ESP32-C6:**
+```
+XIAO ESP32-C6      SSD1306 OLED
+──────────────      ────────────
+3.3V  ──────────    VCC
+GND   ──────────    GND
+GPIO6 (D4/SDA) ──  SDA
+GPIO7 (D5/SCL) ──  SCL
+```
+
+**ESP32-C6-DevKitC-1:**
 ```
 ESP32-C6          SSD1306 OLED
 ────────          ────────────
