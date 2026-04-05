@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include "esp_err.h"
 
 #define CONFIG_SSID_MAX_LEN 32
 #define CONFIG_PASS_MAX_LEN 64

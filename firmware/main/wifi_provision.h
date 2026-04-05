@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 /**
  * Start WiFi provisioning in AP mode with captive portal.
  * Runs a simple web server for configuring WiFi and MQTT.
