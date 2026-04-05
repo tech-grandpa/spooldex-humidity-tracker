@@ -18,6 +18,7 @@
 #include "esp_netif.h"
 #include "esp_sntp.h"
 #include "esp_task_wdt.h"
+#include "esp_timer.h"
 
 #include "ble_scanner.h"
 #include "http_push.h"
