@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esp_err.h"
+
 /**
  * Initialize OTA update subsystem.
  * Sets up MQTT command handler for remote OTA triggers.
